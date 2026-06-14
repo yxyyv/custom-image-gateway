@@ -61,7 +61,7 @@ func GetFileExt(name string) string {
 func GetDatePath(timeFormat string) string {
 	now := time.Now()
 	if timeFormat == "" {
-		timeFormat = "200601/02"
+		return ""
 	}
 	datePath := PathSuffixCheckAdd(now.Format(timeFormat), "/")
 	return datePath
