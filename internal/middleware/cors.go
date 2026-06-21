@@ -18,12 +18,24 @@ func Cors() gin.HandlerFunc {
 			domain = c.GetHeader("domain")
 		}
 
-		if domain != "" && !strings.HasPrefix(domain, "http"+"://") {
+		// 如果没有从 query 或 header 获取到 domain，尝试从反向代理头获取
+		if domain == "" {
+			// 优先使用 X-Forwarded-Host，这是反向代理传递的原始域名
+			xForwardedHost := c.GetHeader("X-Forwarded-Host")
+			if xForwardedHost != "" {
+				domain = xForwardedHost
+			} else if c.Request.Host != "" {
+				// 回退到请求的 Host
+				domain = c.Request.Host
+			}
+		}
+
+		if domain != "" && !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
 			xForwardedProto := c.GetHeader("X-Forwarded-Proto")
 			if xForwardedProto == "https" {
-				domain = "https" + "://" + domain
+				domain = "https://" + domain
 			} else {
-				domain = "http" + "://" + domain
+				domain = "http://" + domain
 			}
 		}
 

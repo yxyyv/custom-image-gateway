@@ -81,3 +81,6 @@ custom-image-gateway
 /storage/uploads
 /storage/
 /config/config-dev.yaml
+
+# Build
+*.exe
