@@ -1,7 +1,6 @@
 package service
 
 import (
-	"github.com/gookit/goutil/dump"
 	"github.com/haierkeys/custom-image-gateway/internal/dao"
 	"github.com/haierkeys/custom-image-gateway/pkg/app"
 	"github.com/haierkeys/custom-image-gateway/pkg/code"
@@ -147,7 +146,6 @@ func (svc *Service) CloudConfigUpdateAndCreate(uid int64, params *CloudConfigReq
 	// 调用数据访问层的更新方法
 	da := convert.StructAssign(params, &dao.CloudConfigSet{}).(*dao.CloudConfigSet)
 
-	dump.P(uid)
 	var id int64
 	var err error
 	if params.ID == 0 {

@@ -8,8 +8,10 @@ import (
 	"image/png"
 	"io"
 	"mime/multipart"
+	"strings"
 
 	"github.com/haierkeys/custom-image-gateway/global"
+	"github.com/haierkeys/custom-image-gateway/internal/dao"
 	"github.com/haierkeys/custom-image-gateway/pkg/code"
 	"github.com/haierkeys/custom-image-gateway/pkg/convert"
 	"github.com/haierkeys/custom-image-gateway/pkg/fileurl"
@@ -136,7 +138,7 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 	daoCloudConfig, err := svc.dao.GetEnableByUId(uid)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, code.ErrorUserNotFound
+			return nil, code.ErrorUserCloudConfigNotFound
 		}
 		return nil, err
 	}
@@ -148,7 +150,7 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 		return nil, err
 	}
 
-	userCloudConfig["SavePath"] = global.Config.LocalFS.SavePath
+	userCloudConfig["SavePath"] = getUserLocalSavePath(daoCloudConfig)
 
 	ins, err := storage.NewClient(daoCloudConfig.Type, userCloudConfig)
 	if err != nil {
@@ -162,9 +164,51 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 
 	useStore := []string{daoCloudConfig.Type}
 
-	accessUrl := fileurl.PathSuffixCheckAdd(userCloudConfig["AccessURLPrefix"].(string), "/") + fileurl.UrlEscape(dstFileKey)
+// 	accessUrl := fileurl.PathSuffixCheckAdd(userCloudConfig["AccessURLPrefix"].(string), "/") + fileurl.UrlEscape(dstFileKey)
+
+// 	return &FileInfo{ImageTitle: fileHeader.Filename, ImageUrl: accessUrl, UseStore: useStore}, nil
+// }
+
+	accessUrl := buildUserAccessURL(daoCloudConfig, dstFileKey, fileKey)
 
 	return &FileInfo{ImageTitle: fileHeader.Filename, ImageUrl: accessUrl, UseStore: useStore}, nil
+}
+
+func getUserLocalSavePath(cfg *dao.CloudConfig) string {
+	if cfg != nil && cfg.Type == storage.LOCAL && strings.TrimSpace(cfg.CustomPath) != "" {
+		return cfg.CustomPath
+	}
+	return global.Config.LocalFS.SavePath
+}
+
+func buildUserAccessURL(cfg *dao.CloudConfig, dstFileKey string, fileKey string) string {
+	if cfg == nil {
+		return fileurl.PathSuffixCheckAdd(global.Config.App.UploadUrlPre, "/") + fileurl.UrlEscape(dstFileKey)
+	}
+
+	accessPrefix := fileurl.PathSuffixCheckAdd(cfg.AccessURLPrefix, "/")
+	if cfg.Type != storage.LOCAL {
+		return accessPrefix + fileurl.UrlEscape(dstFileKey)
+	}
+
+	localURLPath := buildUserLocalURLPath(cfg.CustomPath, fileKey)
+	return accessPrefix + fileurl.UrlEscape(localURLPath)
+}
+
+func buildUserLocalURLPath(customPath string, fileKey string) string {
+	fileKey = normalizeURLPath(fileKey)
+	customPath = strings.TrimSpace(customPath)
+	if customPath == "" {
+		return normalizeURLPath(fileurl.PathSuffixCheckAdd(global.Config.LocalFS.SavePath, "/") + fileKey)
+	}
+	if fileurl.IsAbsPath(customPath) {
+		return fileKey
+	}
+	return normalizeURLPath(fileurl.PathSuffixCheckAdd(customPath, "/") + fileKey)
+}
+
+func normalizeURLPath(v string) string {
+	return strings.ReplaceAll(v, "\\", "/")
 }
 
 // imageResize 压缩图片

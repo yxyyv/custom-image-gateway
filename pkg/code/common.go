@@ -25,6 +25,7 @@ var (
 	ErrorUserRegisterIsDisable              = NewError(incr(400), lang{zh: "用户注册已关闭,请联系管理员配置 config.user.register-is-enable 选项", en: "User registration is closed, please contact the administrator to configure the config.user.register-is-enable option"})
 	ErrorUserLoginFailed                    = NewError(incr(400), lang{zh: "用户登录失败", en: "User login failed"})
 	ErrorUserNotFound                       = NewError(incr(400), lang{zh: "用户不存在", en: "Username does not exist"})
+	ErrorUserCloudConfigNotFound            = NewError(incr(400), lang{zh: "用户未配置已启用的存储", en: "No enabled storage configured for the user"})
 	ErrorUserAlreadyExists                  = NewError(incr(400), lang{zh: "用户已经存在", en: "Username already exists"})
 	ErrorUserEmailAlreadyExists             = NewError(incr(400), lang{zh: "用户邮箱已存在", en: "User email already exists"})
 	ErrorUserUsernameNotValid               = NewError(incr(400), lang{zh: "用户名不符合规则,用户名长度为3-15位,只能包含字母、数字或下划线", en: "The username does not meet the rules, the username length is 3-15 digits, and can only contain letters, numbers or underscores"})
