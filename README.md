@@ -153,6 +153,9 @@ This software is open source and free. If you'd like to express your gratitude o
 
 	Click on `WebGUI` -> Copy API Config to get configuration information.
 
+	If the client fills in an upload configuration `id`, the API will use that exact configuration first.
+	If `id` is omitted, the API will fall back to the user's currently enabled configuration for backward compatibility.
+
 - **Storage Type Explanation**
 
   | Storage Type         | Description                                                                                                                                                                                                                                                                                                                                                                                                  |

@@ -1,11 +1,14 @@
 package service
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/haierkeys/custom-image-gateway/global"
 	"github.com/haierkeys/custom-image-gateway/internal/dao"
+	"github.com/haierkeys/custom-image-gateway/pkg/code"
 	"github.com/haierkeys/custom-image-gateway/pkg/storage"
+	"gorm.io/gorm"
 )
 
 func loadTestConfig(t *testing.T) {
@@ -98,5 +101,102 @@ func TestBuildUserAccessURLForLocalFS(t *testing.T) {
 				t.Fatalf("expected %q, got %q", tc.expected, got)
 			}
 		})
+	}
+}
+
+func TestResolveUserUploadConfigByID(t *testing.T) {
+	svc := &Service{
+		dao: &dao.Dao{},
+	}
+	params := &ClientUploadParams{ID: 12}
+	got, err := resolveUserUploadConfig(
+		svc,
+		99,
+		params,
+		func(id int64, uid int64) (*dao.CloudConfig, error) {
+			if id != 12 || uid != 99 {
+				t.Fatalf("unexpected id/uid: %d/%d", id, uid)
+			}
+			return &dao.CloudConfig{ID: 12, UID: 99, Type: storage.LOCAL}, nil
+		},
+		func(uid int64) (*dao.CloudConfig, error) {
+			t.Fatal("fallback lookup should not be called when id is provided")
+			return nil, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got == nil || got.ID != 12 {
+		t.Fatalf("expected config id 12, got %#v", got)
+	}
+}
+
+func TestResolveUserUploadConfigByIDNotFound(t *testing.T) {
+	svc := &Service{
+		dao: &dao.Dao{},
+	}
+	_, err := resolveUserUploadConfig(
+		svc,
+		99,
+		&ClientUploadParams{ID: 12},
+		func(id int64, uid int64) (*dao.CloudConfig, error) {
+			return nil, gorm.ErrRecordNotFound
+		},
+		func(uid int64) (*dao.CloudConfig, error) {
+			t.Fatal("fallback lookup should not be called when id is provided")
+			return nil, nil
+		},
+	)
+	if !errors.Is(err, code.ErrorUserCloudConfigIDNotFound) {
+		t.Fatalf("expected ErrorUserCloudConfigIDNotFound, got %v", err)
+	}
+}
+
+func TestResolveUserUploadConfigFallbackToEnabled(t *testing.T) {
+	svc := &Service{
+		dao: &dao.Dao{},
+	}
+	got, err := resolveUserUploadConfig(
+		svc,
+		88,
+		&ClientUploadParams{},
+		func(id int64, uid int64) (*dao.CloudConfig, error) {
+			t.Fatal("id lookup should not be called when id is empty")
+			return nil, nil
+		},
+		func(uid int64) (*dao.CloudConfig, error) {
+			if uid != 88 {
+				t.Fatalf("unexpected uid: %d", uid)
+			}
+			return &dao.CloudConfig{ID: 3, UID: 88, Type: storage.MinIO}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got == nil || got.ID != 3 {
+		t.Fatalf("expected config id 3, got %#v", got)
+	}
+}
+
+func TestResolveUserUploadConfigFallbackNotFound(t *testing.T) {
+	svc := &Service{
+		dao: &dao.Dao{},
+	}
+	_, err := resolveUserUploadConfig(
+		svc,
+		88,
+		&ClientUploadParams{},
+		func(id int64, uid int64) (*dao.CloudConfig, error) {
+			t.Fatal("id lookup should not be called when id is empty")
+			return nil, nil
+		},
+		func(uid int64) (*dao.CloudConfig, error) {
+			return nil, gorm.ErrRecordNotFound
+		},
+	)
+	if !errors.Is(err, code.ErrorUserCloudConfigNotFound) {
+		t.Fatalf("expected ErrorUserCloudConfigNotFound, got %v", err)
 	}
 }

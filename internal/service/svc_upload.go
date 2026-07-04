@@ -34,6 +34,7 @@ type FileInfo struct {
 
 // 上传文件
 type ClientUploadParams struct {
+	ID     int64  `form:"id"`
 	Key    string `form:"key"`
 	Type   string `form:"type"`
 	Width  int    `form:"width"`
@@ -134,16 +135,12 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 
 	var reader = bytes.NewReader(writer.Bytes())
 
-	var userCloudConfig = map[string]any{}
-	daoCloudConfig, err := svc.dao.GetEnableByUId(uid)
+	daoCloudConfig, err := svc.getUserUploadConfig(uid, params)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, code.ErrorUserCloudConfigNotFound
-		}
 		return nil, err
 	}
 
-	userCloudConfig = convert.StructToMapByReflect(daoCloudConfig)
+	var userCloudConfig = convert.StructToMapByReflect(daoCloudConfig)
 
 	// 检查云存储类型是否启用
 	if err := storage.IsUserEnabled(daoCloudConfig.Type); err != nil {
@@ -172,6 +169,38 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 	accessUrl := buildUserAccessURL(daoCloudConfig, dstFileKey, fileKey)
 
 	return &FileInfo{ImageTitle: fileHeader.Filename, ImageUrl: accessUrl, UseStore: useStore}, nil
+}
+
+func (svc *Service) getUserUploadConfig(uid int64, params *ClientUploadParams) (*dao.CloudConfig, error) {
+	return resolveUserUploadConfig(svc, uid, params, svc.dao.GetById, svc.dao.GetEnableByUId)
+}
+
+func resolveUserUploadConfig(
+	_ *Service,
+	uid int64,
+	params *ClientUploadParams,
+	getByID func(id int64, uid int64) (*dao.CloudConfig, error),
+	getEnabledByUID func(uid int64) (*dao.CloudConfig, error),
+) (*dao.CloudConfig, error) {
+	if params != nil && params.ID > 0 {
+		cfg, err := getByID(params.ID, uid)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, code.ErrorUserCloudConfigIDNotFound
+			}
+			return nil, err
+		}
+		return cfg, nil
+	}
+
+	cfg, err := getEnabledByUID(uid)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, code.ErrorUserCloudConfigNotFound
+		}
+		return nil, err
+	}
+	return cfg, nil
 }
 
 func getUserLocalSavePath(cfg *dao.CloudConfig) string {
