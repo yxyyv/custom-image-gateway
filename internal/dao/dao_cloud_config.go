@@ -61,7 +61,22 @@ func (d *Dao) Create(params *CloudConfigSet, uid int64) (int64, error) {
 
 	m := convert.StructAssign(params, &model.CloudConfig{}).(*model.CloudConfig)
 	m.UID = uid
-	err := u.WithContext(d.ctx).Create(m)
+	err := u.WithContext(d.ctx).Select(
+		u.UID,
+		u.Type,
+		u.Endpoint,
+		u.Region,
+		u.AccountID,
+		u.BucketName,
+		u.AccessKeyID,
+		u.AccessKeySecret,
+		u.CustomPath,
+		u.AccessURLPrefix,
+		u.User,
+		u.Password,
+		u.IsEnabled,
+		u.IsDeleted,
+	).Create(m)
 
 	//dump.P(m, uid)
 

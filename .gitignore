@@ -84,3 +84,4 @@ custom-image-gateway
 
 # Build
 *.exe
+/go-build-cache/

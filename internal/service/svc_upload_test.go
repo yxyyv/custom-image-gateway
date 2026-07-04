@@ -200,3 +200,35 @@ func TestResolveUserUploadConfigFallbackNotFound(t *testing.T) {
 		t.Fatalf("expected ErrorUserCloudConfigNotFound, got %v", err)
 	}
 }
+
+func TestSyncCloudConfigDefaultState(t *testing.T) {
+	t.Run("does not disable others when new config is not default", func(t *testing.T) {
+		called := false
+		err := syncCloudConfigDefaultState(func(id int64, uid int64) error {
+			called = true
+			return nil
+		}, 12, 99, 0)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if called {
+			t.Fatal("disableOthers should not be called when isEnabled is 0")
+		}
+	})
+
+	t.Run("disables others when config is marked default", func(t *testing.T) {
+		var gotID int64
+		var gotUID int64
+		err := syncCloudConfigDefaultState(func(id int64, uid int64) error {
+			gotID = id
+			gotUID = uid
+			return nil
+		}, 12, 99, 1)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if gotID != 12 || gotUID != 99 {
+			t.Fatalf("expected disableOthers to receive 12/99, got %d/%d", gotID, gotUID)
+		}
+	})
+}

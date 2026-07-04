@@ -23,7 +23,7 @@ type CloudConfig struct {
 	AccessURLPrefix string     `gorm:"column:access_url_prefix" json:"accessUrlPrefix" form:"accessUrlPrefix"`
 	User            string     `gorm:"column:user" json:"user" form:"user"`
 	Password        string     `gorm:"column:password" json:"password" form:"password"`
-	IsEnabled       int64      `gorm:"column:is_enabled;not null;default:1" json:"isEnabled" form:"isEnabled"`
+	IsEnabled       int64      `gorm:"column:is_enabled;not null" json:"isEnabled" form:"isEnabled"`
 	IsDeleted       int64      `gorm:"column:is_deleted;not null" json:"isDeleted" form:"isDeleted"`
 	CreatedAt       timex.Time `gorm:"column:created_at;type:datetime;autoCreateTime" json:"createdAt" form:"createdAt"`
 	UpdatedAt       timex.Time `gorm:"column:updated_at;type:datetime;autoUpdateTime" json:"updatedAt" form:"updatedAt"`

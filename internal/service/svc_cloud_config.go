@@ -154,7 +154,6 @@ func (svc *Service) CloudConfigUpdateAndCreate(uid int64, params *CloudConfigReq
 			// 如果发生错误，返回错误信息
 			return 0, err
 		}
-		svc.dao.DisableBatch(id, uid)
 	} else {
 		id = params.ID
 		err := svc.dao.Update(da, params.ID, uid)
@@ -162,11 +161,21 @@ func (svc *Service) CloudConfigUpdateAndCreate(uid int64, params *CloudConfigReq
 			// 如果发生错误，返回错误信息
 			return 0, err
 		}
-		if params.IsEnabled == 1 {
-			svc.dao.DisableBatch(params.ID, uid)
-		}
+	}
+
+	if err := syncCloudConfigDefaultState(func(id int64, uid int64) error {
+		return svc.dao.DisableBatch(id, uid)
+	}, id, uid, params.IsEnabled); err != nil {
+		return 0, err
 	}
 	return id, nil
+}
+
+func syncCloudConfigDefaultState(disableOthers func(id int64, uid int64) error, id int64, uid int64, isEnabled int64) error {
+	if isEnabled != 1 {
+		return nil
+	}
+	return disableOthers(id, uid)
 }
 
 // 删除指定用户的云存储配置
