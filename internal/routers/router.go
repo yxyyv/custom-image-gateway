@@ -63,9 +63,11 @@ func NewRouter(frontendFiles embed.FS) *gin.Engine {
 			userApiR.Use(middleware.UserAuthToken()).DELETE("/cloud_config", apiRouter.NewCloudConfig().Delete)
 			userApiR.Use(middleware.UserAuthToken()).GET("/cloud_config", apiRouter.NewCloudConfig().List)
 			userApiR.Use(middleware.UserAuthToken()).POST("/upload", apiRouter.NewUpload().UserUpload)
+			userApiR.Use(middleware.UserAuthToken()).POST("/image/trash", apiRouter.NewImageTrash().UserTrash)
 		}
 
 		api.Use(middleware.AuthToken()).POST("/upload", apiRouter.NewUpload().Upload)
+		api.Use(middleware.AuthToken()).POST("/image/trash", apiRouter.NewImageTrash().Trash)
 
 	}
 	if global.Config.LocalFS.HttpfsIsEnable {

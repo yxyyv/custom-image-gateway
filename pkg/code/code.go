@@ -93,18 +93,28 @@ func (e *Code) HaveDetails() bool {
 	return e.haveDetails
 }
 
+func (e *Code) clone() *Code {
+	copied := *e
+	if e.details != nil {
+		copied.details = append([]string{}, e.details...)
+	}
+	return &copied
+}
+
 func (e *Code) WithData(data interface{}) *Code {
-	e.data = data
-	return e
+	copied := e.clone()
+	copied.data = data
+	return copied
 }
 
 func (e *Code) WithDetails(details ...string) *Code {
-	e.haveDetails = true
-	e.details = []string{}
+	copied := e.clone()
+	copied.haveDetails = true
+	copied.details = []string{}
 	for _, d := range details {
-		e.details = append(e.details, d)
+		copied.details = append(copied.details, d)
 	}
-	return e
+	return copied
 }
 
 func (e *Code) StatusCode() int {
