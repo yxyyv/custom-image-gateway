@@ -57,4 +57,6 @@ var (
 	ErrorImageURLPrefixMismatch             = NewError(incr(400), lang{zh: "图片地址与当前配置前缀不匹配", en: "Image URL does not match the current configuration prefix"})
 	ErrorImagePathInvalid                   = NewError(incr(400), lang{zh: "图片路径无效", en: "Invalid image path"})
 	ErrorImageFileNotFound                  = NewError(incr(400), lang{zh: "图片文件不存在", en: "Image file does not exist"})
+	ErrorImageTrashFileNotFound             = NewError(incr(400), lang{zh: "回收站中的图片文件不存在", en: "Image file does not exist in trash"})
+	ErrorImageRestoreConflict               = NewError(incr(400), lang{zh: "原始图片路径已存在文件，无法恢复", en: "Original image path already exists, unable to restore"})
 )

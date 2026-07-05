@@ -64,10 +64,12 @@ func NewRouter(frontendFiles embed.FS) *gin.Engine {
 			userApiR.Use(middleware.UserAuthToken()).GET("/cloud_config", apiRouter.NewCloudConfig().List)
 			userApiR.Use(middleware.UserAuthToken()).POST("/upload", apiRouter.NewUpload().UserUpload)
 			userApiR.Use(middleware.UserAuthToken()).POST("/image/trash", apiRouter.NewImageTrash().UserTrash)
+			userApiR.Use(middleware.UserAuthToken()).POST("/image/restore", apiRouter.NewImageTrash().UserRestore)
 		}
 
 		api.Use(middleware.AuthToken()).POST("/upload", apiRouter.NewUpload().Upload)
 		api.Use(middleware.AuthToken()).POST("/image/trash", apiRouter.NewImageTrash().Trash)
+		api.Use(middleware.AuthToken()).POST("/image/restore", apiRouter.NewImageTrash().Restore)
 
 	}
 	if global.Config.LocalFS.HttpfsIsEnable {
