@@ -83,3 +83,21 @@ func (p *LocalFS) SendContent(fileKey string, content []byte) (string, error) {
 		return dstFileKey, nil
 	}
 }
+
+func (p *LocalFS) ObjectExists(fileKey string) (bool, error) {
+	if !p.IsCheckSave {
+		if err := p.CheckSave(); err != nil {
+			return false, err
+		}
+	}
+
+	dstFileKey := p.getSavePath() + fileKey
+	_, err := os.Stat(dstFileKey)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}

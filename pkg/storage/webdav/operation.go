@@ -3,8 +3,10 @@
 package webdav
 
 import (
+	stderrors "errors"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/haierkeys/custom-image-gateway/pkg/errors"
 	"github.com/haierkeys/custom-image-gateway/pkg/fileurl"
@@ -46,6 +48,28 @@ func (w *WebDAV) SendContent(fileKey string, content []byte) (string, error) {
 	}
 
 	return fileKey, nil
+}
+
+func (w *WebDAV) ObjectExists(fileKey string) (bool, error) {
+	fileKey = fileurl.PathSuffixCheckAdd(w.Config.CustomPath, "/") + fileKey
+	_, err := w.Client.Stat(fileKey)
+	if err == nil {
+		return true, nil
+	}
+
+	if stderrors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+
+	if statusErr, ok := err.(interface{ StatusCode() int }); ok && statusErr.StatusCode() == 404 {
+		return false, nil
+	}
+
+	if strings.Contains(strings.ToLower(err.Error()), "404") || strings.Contains(strings.ToLower(err.Error()), "not found") {
+		return false, nil
+	}
+
+	return false, errors.Wrap(err, "webdav")
 }
 
 // // DownloadFile 从 WebDAV 服务器下载文件到本地。

@@ -48,6 +48,10 @@ type Storager interface {
 	SendContent(pathKey string, content []byte) (string, error)
 }
 
+type ObjectExistChecker interface {
+	ObjectExists(pathKey string) (bool, error)
+}
+
 var Instance map[Type]Storager
 
 func NewClient(cType Type, config map[string]any) (Storager, error) {

@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/pkg/errors"
 )
 
@@ -82,4 +83,30 @@ func (p *MinIO) SendContent(fileKey string, content []byte) (string, error) {
 	}
 
 	return fileurl.PathSuffixCheckAdd(p.Config.BucketName, "/") + fileKey, errors.Wrap(err, "minio")
+}
+
+func (p *MinIO) ObjectExists(fileKey string) (bool, error) {
+	ctx := context.Background()
+	bucket := p.GetBucket("")
+	fileKey = fileurl.PathSuffixCheckAdd(p.Config.CustomPath, "/") + fileKey
+
+	_, err := p.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(fileKey),
+	})
+	if err == nil {
+		return true, nil
+	}
+
+	var notFound *types.NotFound
+	if errors.As(err, &notFound) {
+		return false, nil
+	}
+
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
+		return false, nil
+	}
+
+	return false, errors.Wrap(err, "minio")
 }

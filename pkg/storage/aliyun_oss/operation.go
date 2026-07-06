@@ -47,3 +47,19 @@ func (p *OSS) SendContent(fileKey string, content []byte) (string, error) {
 	}
 	return fileKey, nil
 }
+
+func (p *OSS) ObjectExists(fileKey string) (bool, error) {
+	if p.Bucket == nil {
+		err := p.GetBucket("")
+		if err != nil {
+			return false, err
+		}
+	}
+
+	fileKey = fileurl.PathSuffixCheckAdd(p.Config.CustomPath, "/") + fileKey
+	exists, err := p.Bucket.IsObjectExist(fileKey)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}

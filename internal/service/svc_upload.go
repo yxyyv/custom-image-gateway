@@ -7,8 +7,11 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"math/rand"
 	"mime/multipart"
+	"path"
 	"strings"
+	"time"
 
 	"github.com/haierkeys/custom-image-gateway/global"
 	"github.com/haierkeys/custom-image-gateway/internal/dao"
@@ -26,6 +29,10 @@ import (
 	"gorm.io/gorm"
 )
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 type FileInfo struct {
 	ImageTitle string   `json:"imageTitle"`
 	ImageUrl   string   `json:"imageUrl"`
@@ -34,11 +41,14 @@ type FileInfo struct {
 
 // 上传文件
 type ClientUploadParams struct {
-	ID     int64  `form:"id"`
-	Key    string `form:"key"`
-	Type   string `form:"type"`
-	Width  int    `form:"width"`
-	Height int    `form:"height"`
+	ID             int64  `form:"id"`
+	Key            string `form:"key"`
+	Type           string `form:"type"`
+	Width          int    `form:"width"`
+	Height         int    `form:"height"`
+	RenameOnUpload bool   `form:"renameOnUpload"`
+	RenamePattern  string `form:"renamePattern"`
+	SourceMtime    int64  `form:"sourceMtime"`
 }
 
 // UploadFile 上传文件
@@ -66,8 +76,6 @@ func (svc *Service) UploadFile(file multipart.File, fileHeader *multipart.FileHe
 		return nil, err
 	}
 
-	var reader = bytes.NewReader(writer.Bytes())
-
 	useStore := []string{}
 	for sType := range storage.StorageTypeMap {
 		config := map[string]any{}
@@ -94,7 +102,16 @@ func (svc *Service) UploadFile(file multipart.File, fileHeader *multipart.FileHe
 			return nil, err
 		}
 
-		dstFileKey, err = ins.SendFile(fileKey, reader, fileType)
+		targetFileKey := fileKey
+		if params != nil && params.RenameOnUpload {
+			targetFileKey, err = buildUploadFileKey(ins, fileKey, params)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		reader := bytes.NewReader(writer.Bytes())
+		dstFileKey, err = ins.SendFile(targetFileKey, reader, fileType)
 		if err != nil {
 			return nil, err
 		}
@@ -133,8 +150,6 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 		return nil, err
 	}
 
-	var reader = bytes.NewReader(writer.Bytes())
-
 	daoCloudConfig, err := svc.getUserUploadConfig(uid, params)
 	if err != nil {
 		return nil, err
@@ -154,19 +169,28 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 		return nil, err
 	}
 
-	dstFileKey, err = ins.SendFile(fileKey, reader, fileType)
+	targetFileKey := fileKey
+	if params != nil && params.RenameOnUpload {
+		targetFileKey, err = buildUploadFileKey(ins, fileKey, params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	reader := bytes.NewReader(writer.Bytes())
+	dstFileKey, err = ins.SendFile(targetFileKey, reader, fileType)
 	if err != nil {
 		return nil, err
 	}
 
 	useStore := []string{daoCloudConfig.Type}
 
-// 	accessUrl := fileurl.PathSuffixCheckAdd(userCloudConfig["AccessURLPrefix"].(string), "/") + fileurl.UrlEscape(dstFileKey)
+	// 	accessUrl := fileurl.PathSuffixCheckAdd(userCloudConfig["AccessURLPrefix"].(string), "/") + fileurl.UrlEscape(dstFileKey)
 
-// 	return &FileInfo{ImageTitle: fileHeader.Filename, ImageUrl: accessUrl, UseStore: useStore}, nil
-// }
+	// 	return &FileInfo{ImageTitle: fileHeader.Filename, ImageUrl: accessUrl, UseStore: useStore}, nil
+	// }
 
-	accessUrl := buildUserAccessURL(daoCloudConfig, dstFileKey, fileKey)
+	accessUrl := buildUserAccessURL(daoCloudConfig, dstFileKey, targetFileKey)
 
 	return &FileInfo{ImageTitle: fileHeader.Filename, ImageUrl: accessUrl, UseStore: useStore}, nil
 }
@@ -240,6 +264,81 @@ func normalizeURLPath(v string) string {
 	return strings.ReplaceAll(v, "\\", "/")
 }
 
+func buildUploadFileKey(ins storage.Storager, originalFileKey string, params *ClientUploadParams) (string, error) {
+	if params == nil || !params.RenameOnUpload {
+		return originalFileKey, nil
+	}
+
+	if params.RenamePattern != "" && params.RenamePattern != "second-only-append-random-on-conflict" {
+		return originalFileKey, nil
+	}
+
+	baseDir := path.Dir(normalizeURLPath(originalFileKey))
+	if baseDir == "." {
+		baseDir = ""
+	}
+
+	ext := strings.ToLower(fileurl.GetFileExt(originalFileKey))
+	timestamp := resolveUploadTimestamp(params.SourceMtime).Format("20060102150405")
+	baseName := timestamp + ext
+	baseFileKey := joinPath(baseDir, baseName)
+
+	checker, ok := ins.(storage.ObjectExistChecker)
+	if !ok {
+		return baseFileKey, nil
+	}
+
+	exists, err := checker.ObjectExists(baseFileKey)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return baseFileKey, nil
+	}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		candidate := joinPath(baseDir, timestamp+"-"+randomAlphaNum(6)+ext)
+		exists, err = checker.ObjectExists(candidate)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return candidate, nil
+		}
+	}
+
+	return "", errors.New("failed to generate a unique upload file name")
+}
+
+func resolveUploadTimestamp(sourceMtime int64) time.Time {
+	if sourceMtime <= 0 {
+		return time.Now()
+	}
+
+	t := time.UnixMilli(sourceMtime)
+	if t.Year() < 2000 || t.Year() > 3000 {
+		return time.Now()
+	}
+	return t
+}
+
+func joinPath(dir string, fileName string) string {
+	if strings.TrimSpace(dir) == "" {
+		return fileName
+	}
+	return strings.TrimSuffix(dir, "/") + "/" + fileName
+}
+
+func randomAlphaNum(length int) string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+	var builder strings.Builder
+	builder.Grow(length)
+	for i := 0; i < length; i++ {
+		builder.WriteByte(alphabet[rand.Intn(len(alphabet))])
+	}
+	return builder.String()
+}
+
 // imageResize 压缩图片
 // 默认裁剪 | 居中裁剪 | 固定尺寸拉伸 | 固定尺寸等比缩放不裁切 | 不处理
 // type: "fill-topleft" | "fill-center" | "resize" | "fit" | "none";
@@ -248,6 +347,19 @@ func imageResize(params *ClientUploadParams, file multipart.File, fileKey string
 	var writer = &bytes.Buffer{}
 	// 压缩
 	_, err := file.Seek(0, 0)
+	if err != nil {
+		return nil, fileKey, fileType, err
+	}
+
+	if params == nil || params.Type == "" || params.Type == "none" {
+		_, err = io.Copy(writer, file)
+		if err != nil {
+			return nil, fileKey, fileType, err
+		}
+		return writer, fileKey, fileType, nil
+	}
+
+	_, err = file.Seek(0, 0)
 	if err != nil {
 		return nil, fileKey, fileType, err
 	}
@@ -267,18 +379,7 @@ func imageResize(params *ClientUploadParams, file multipart.File, fileKey string
 	var newImage image.Image
 	var isNewImage bool
 
-	if params.Type == "none" || params.Type == "" {
-		newWidth = imageMaxWidth
-		newHeight = imageMaxHeight
-		if (imgSize.X != newWidth || imgSize.Y != newHeight) && (newWidth != 0 || newHeight != 0) {
-			if newWidth == 0 || newHeight == 0 {
-				newImage = imaging.Resize(img, newWidth, newHeight, imaging.Lanczos)
-			} else {
-				newImage = imaging.Fit(img, newWidth, newHeight, imaging.Lanczos)
-			}
-			isNewImage = true
-		}
-	} else if params.Type == "fill-topleft" {
+	if params.Type == "fill-topleft" {
 		if params.Width < imageMaxWidth || imageMaxWidth == 0 {
 			newWidth = params.Width
 		} else {
