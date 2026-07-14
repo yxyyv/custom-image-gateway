@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -23,6 +24,7 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/gen2brain/avif"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"
@@ -62,8 +64,9 @@ func (svc *Service) UploadFile(file multipart.File, fileHeader *multipart.FileHe
 		return nil, errors.New("file suffix is not supported.")
 	}
 	// 检查文件大小
-	if fileurl.IsFileSizeAllowed(fileurl.ImageType, file, global.Config.App.UploadMaxSize) {
-		return nil, errors.New("exceeded maximum file limit.")
+	if err := validateUploadFileSize(fileHeader.Size, global.Config.App.UploadMaxSize); err != nil {
+		logUploadFileSizeExceeded(fileHeader, err)
+		return nil, err
 	}
 
 	var fileKey = fileurl.GetDatePath(global.Config.App.UploadDatePath) + fileName
@@ -136,8 +139,9 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 		return nil, errors.New("file suffix is not supported.")
 	}
 	// 检查文件大小
-	if fileurl.IsFileSizeAllowed(fileurl.ImageType, file, global.Config.App.UploadMaxSize) {
-		return nil, errors.New("exceeded maximum file limit.")
+	if err := validateUploadFileSize(fileHeader.Size, global.Config.App.UploadMaxSize); err != nil {
+		logUploadFileSizeExceeded(fileHeader, err)
+		return nil, err
 	}
 
 	var fileKey = fileurl.GetDatePath(global.Config.App.UploadDatePath) + fileName
@@ -193,6 +197,47 @@ func (svc *Service) UserUploadFile(uid int64, file multipart.File, fileHeader *m
 	accessUrl := buildUserAccessURL(daoCloudConfig, dstFileKey, targetFileKey)
 
 	return &FileInfo{ImageTitle: fileHeader.Filename, ImageUrl: accessUrl, UseStore: useStore}, nil
+}
+
+type UploadFileSizeError struct {
+	SizeBytes int64
+	MaxSizeMB int
+}
+
+func (err *UploadFileSizeError) Error() string {
+	return fmt.Sprintf("exceeded maximum file limit: file size %.2f MB exceeds upload-max-size %d MB", float64(err.SizeBytes)/(1024*1024), err.MaxSizeMB)
+}
+
+func validateUploadFileSize(size int64, uploadMaxSizeMB int) error {
+	if uploadMaxSizeMB <= 0 {
+		return nil
+	}
+
+	limit := int64(uploadMaxSizeMB) * 1024 * 1024
+	if size > limit {
+		return &UploadFileSizeError{SizeBytes: size, MaxSizeMB: uploadMaxSizeMB}
+	}
+	return nil
+}
+
+func logUploadFileSizeExceeded(fileHeader *multipart.FileHeader, err error) {
+	var sizeErr *UploadFileSizeError
+	if !errors.As(err, &sizeErr) || global.Logger == nil {
+		return
+	}
+
+	fileName := ""
+	if fileHeader != nil {
+		fileName = fileHeader.Filename
+	}
+
+	global.Logger.Warn("upload file rejected: exceeded maximum file limit",
+		zap.String("file", fileName),
+		zap.Float64("size_mb", float64(sizeErr.SizeBytes)/(1024*1024)),
+		zap.Int64("size_bytes", sizeErr.SizeBytes),
+		zap.Int("upload_max_size_mb", sizeErr.MaxSizeMB),
+		zap.Error(err),
+	)
 }
 
 func (svc *Service) getUserUploadConfig(uid int64, params *ClientUploadParams) (*dao.CloudConfig, error) {

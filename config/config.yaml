@@ -38,7 +38,7 @@ app:
   upload-url-pre: http://192.168.215.2:9000
   # 上传文件的最大大小（单位：MB）
   # Maximum size of uploaded files (in MB)
-  upload-max-size: 5
+  upload-max-size: 20
   # 允许上传的图片文件扩展名
   # Allowed image file extensions for upload
   upload-allow-exts:

@@ -37,6 +37,7 @@ func (u Upload) Upload(c *gin.Context) {
 	if errf != nil {
 		global.Logger.Error("apiRouter.UserUpload.ErrorInvalidParams len 0", zap.Error(errf))
 		response.ToResponse(code.ErrorInvalidParams)
+		return
 	}
 	defer file.Close()
 
@@ -72,6 +73,7 @@ func (u Upload) UserUpload(c *gin.Context) {
 	if errf != nil {
 		global.Logger.Error("apiRouter.UserUpload.ErrorInvalidParams len 0", zap.Error(errf))
 		response.ToResponse(code.ErrorInvalidParams)
+		return
 	}
 	defer file.Close()
 

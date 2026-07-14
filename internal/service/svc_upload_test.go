@@ -104,6 +104,51 @@ func TestBuildUserAccessURLForLocalFS(t *testing.T) {
 	}
 }
 
+func TestValidateUploadFileSize(t *testing.T) {
+	const mb = 1024 * 1024
+
+	tests := []struct {
+		name      string
+		size      int64
+		maxSizeMB int
+		wantErr   bool
+	}{
+		{
+			name:      "under limit",
+			size:      4*mb + 512,
+			maxSizeMB: 5,
+		},
+		{
+			name:      "equal to limit is allowed",
+			size:      5 * mb,
+			maxSizeMB: 5,
+		},
+		{
+			name:      "over limit",
+			size:      5*mb + 1,
+			maxSizeMB: 5,
+			wantErr:   true,
+		},
+		{
+			name:      "zero disables limit",
+			size:      100 * mb,
+			maxSizeMB: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateUploadFileSize(tc.size, tc.maxSizeMB)
+			if tc.wantErr && err == nil {
+				t.Fatal("expected size validation error")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+		})
+	}
+}
+
 func TestResolveUserUploadConfigByID(t *testing.T) {
 	svc := &Service{
 		dao: &dao.Dao{},

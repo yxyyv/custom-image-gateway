@@ -27,6 +27,13 @@ func TestCreateCloudConfigPreservesDisabledState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create test db: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
 
 	d := New(db, context.Background())
 	id, err := d.Create(&CloudConfigSet{
